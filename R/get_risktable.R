@@ -44,6 +44,18 @@ get_risktable <- function(x, ...){
 #' @method get_risktable survfit
 #' @export
 
+library(visR)
+
+x <- visR::estimate_KM(adtte, strata = "SEX")
+
+# change y_value label?
+get_risktable(x, label=c("At Risk"), collapse = FALSE)
+get_risktable(x, label=c("At Risk"), collapse = TRUE)
+
+# 
+get_risktable(x, label=c("At Risk"), collapse = FALSE, group="statlist")
+get_risktable(x, label=c("At Risk"), collapse = TRUE, group="statlist")
+
 get_risktable.survfit <- function(
     x
    ,times = NULL
@@ -137,11 +149,9 @@ get_risktable.survfit <- function(
 
   survfit_summary <- summary(x, times = times, extend = TRUE)
 
-# Risk table per statlist -------------------------------------------------
+# Risk table per statlist as starting point -------------------------------
 
-  ## labels of risk table are strata, titles are specifified through `label
-  
-  per_statlist <- data.frame(
+  risktable <- data.frame(
     time = survfit_summary$time,
     strata = base::factor(base::sub('.*=', '', survfit_summary$strata), levels = base::sub('.*=', '', levels(survfit_summary$strata))),
     n.risk = survfit_summary$n.risk,
@@ -158,17 +168,21 @@ get_risktable.survfit <- function(
     dplyr::arrange(strata, time)%>%
     dplyr::rename(y_values = strata)%>%
     as.data.frame()
+  
+# Organize the risk tables per statlist -----------------------------------
+  
+  if (group == "statlist" & collapse == FALSE){
+    final <- risktable[, c("time", "y_values", statlist)]
 
-  final <-  per_statlist
-
-  attr(final, 'time_ticks') <- times
-  attr(final, "title") <- label
-  attr(final, "statlist") <- statlist
+    attr(final, 'time_ticks') <- times
+    attr(final, "title") <- label
+    attr(final, "statlist") <- statlist
+  }
 
 # Organize the risk tables per strata => reorganize the data --------------
 
   if (group == "strata" & collapse == FALSE){
-    per_strata <- per_statlist %>%
+    per_strata <- risktable %>%
       dplyr::arrange(time) %>%
       tidyr::pivot_longer( cols = c("n.risk", "n.event", "n.censor")
                           ,names_to = "statlist"
@@ -190,7 +204,7 @@ get_risktable.survfit <- function(
 # Collapse: start from the group == "statlist" logic ------------------------
 
   if (collapse == TRUE) {
-    collapsed <- per_statlist %>%
+    collapsed <- risktable %>%
       dplyr::arrange(time) %>%
       dplyr::mutate(strata = "Overall") %>%
       dplyr::group_by(time, strata) %>%
